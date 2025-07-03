@@ -1,4 +1,3 @@
-from imitation.scripts.ingredients.reward import normalize_output_running
 from stable_baselines3.common import base_class, policies, vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.sac import policies as sac_policies
@@ -82,59 +81,50 @@ if __name__ == '__main__':
     SEED = 43
     set_seed(SEED)
     env = make_vec_env(
-        "Ant-v4",
+        "Humanoid-v4",
         rng=np.random.default_rng(SEED),
         n_envs=1,
         post_wrappers=[lambda env, _: RolloutInfoWrapper(env)],  # to compute rollouts
     )
 
-    env = VecNormalize(env,gamma=0.995 ,norm_obs=False, norm_reward=True)
+    env = VecNormalize(env,gamma=0.999 ,norm_obs=False, norm_reward=True)
 
-    # expert = load_policy(
-    #     "ppo-huggingface",
-    #     organization="sb3",
-    #     env_name="HalfCheetah-v3",
-    #     venv=env,
-    # )
-
-    expert = PPO.load("./model/expert/ppo-ant-v4.zip")
-    # reward, _ = evaluate_policy(
-    #     expert, env, 100, return_episode_rewards=True,
-    # )
-    # print(np.mean(reward))
+    expert = PPO.load("./model/expert/ppo-Humanoid-v4.zip")
+    reward, _ = evaluate_policy(
+        expert, env, 100, return_episode_rewards=True,
+    )
+    print(np.mean(reward))
     rollouts = rollout.rollout(
         expert,
         env,
         rollout.make_sample_until(min_episodes=100),
         rng=np.random.default_rng(SEED),
-
     )
 
     policy_kwags = {
         "log_std_init": -1,
-        "activation_fn": nn.modules.activation.Tanh,
+        "activation_fn": nn.ReLU,
         "features_extractor_class": NormalizeFeaturesExtractor,
-        'net_arch': dict(pi=[64, 64], vf=[64, 64])
+        'net_arch': dict(pi=[256, 256], vf=[256, 256])
     }
-
     learner = PPO(
-        env=env,
-        policy=MlpPolicy,
-        batch_size=16,
-        n_steps=2048,
-        ent_coef=3.1441389214159857e-06,
-        gae_lambda=0.8,
-        learning_rate=0.00017959211641976886,
-        gamma=0.995,
-        clip_range=0.1,
-        vf_coef=0.4351450387648799,
-        n_epochs=10,
-        seed=SEED,
-        policy_kwargs=policy_kwags,
-        max_grad_norm=0.9,
-        tensorboard_log="./log/",
-        verbose=1,
-    )
+                    env=env,
+                    policy=MlpPolicy,
+                    batch_size=128,
+                    n_steps=1024,
+                    ent_coef=2.07e-05,
+                    gae_lambda=0.92,
+                    learning_rate=2.03e-5,
+                    gamma=0.999,
+                    clip_range=0.2,
+                    vf_coef=0.8192,
+                    n_epochs=20,
+                    seed=SEED,
+                    policy_kwargs=policy_kwags,
+                    max_grad_norm=0.5,
+                    tensorboard_log="./log/",
+                    verbose=1,
+                   )
 
     b_reward_net = Bayesian_reward_net(observation_space=env.observation_space,
                                        action_space=env.action_space,
@@ -142,22 +132,22 @@ if __name__ == '__main__':
                                        use_action=True,
                                        use_next_state=True,
                                        use_done=True,
-                                       feature_extractor=None,
                                        dropout=0.3,
                                        hidden_size=256,
+                                       normalize_input_layer=RunningNorm,
                                        )
 
 
     airl_trainer = custom_AIRL(
                                 demonstrations=rollouts,
-                                demo_batch_size=2048,
-                                gen_replay_buffer_capacity=512,
-                                n_disc_updates_per_round=8,
+                                demo_batch_size=1024,
+                                gen_replay_buffer_capacity=1024,
+                                n_disc_updates_per_round=16,
                                 venv=env,
                                 gen_algo=learner,
                                 reward_net=b_reward_net,
                                 reg="B",  # Adversarial_Augmentation:AA, Gradient penalty: GP, Bayesian
-                                lambda_reg=-0.1,
+                                lambda_reg=0.0,
                                 init_tensorboard_graph=True,
                                 init_tensorboard=True,
                                 log_dir="./log/",
@@ -174,16 +164,15 @@ if __name__ == '__main__':
     )
 
     print(airl_trainer.lambda_reg)
-    # airl_trainer.train(1000_000)
-    for n in range(50):
+    # airl_trainer.train(1500_000)
+    for n in range(75):
         airl_trainer.train(20000)
-        if n > 2:
-            airl_trainer.lambda_reg *= 0.5
-    airl_trainer.gen_algo.save("./model/airl/model/test")
+        airl_trainer.lambda_reg *= 0.1
+    learner.save("./model/airl/model/test")
     torch.save(b_reward_net, "model/airl/model/test.pth")
     # env.seed(SEED)
     learner_rewards_after_training, _ = evaluate_policy(
-        airl_trainer.gen_algo, env, 100, return_episode_rewards=True,
+        learner, env, 100, return_episode_rewards=True,
     )
     print("mean reward after training:", np.mean(learner_rewards_after_training))
     # print("mean reward before training:", np.mean(learner_rewards_before_training))
