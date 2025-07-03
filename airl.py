@@ -131,6 +131,9 @@ class custom_AIRL(AIRL):
             )
             b_r_exp = []
             b_r_gen = []
+            self.lambda_regs = []
+            self.reg_list = []
+            self.binary_losses = []
             for batch in batch_iter:
                 disc_logits = self.logits_expert_is_high(
                     batch["state"],
@@ -140,8 +143,7 @@ class custom_AIRL(AIRL):
                     batch["log_policy_act_prob"],
                 )
                 r_exp, r_gen = self.get_reward(batch)
-                # reg = self.compute_Gradient_Penalty(batch, lambda_gp=10)
-                # reg = self.compute_Adversarial_Augmentation(batch)
+
                 if self.lambda_reg != 0 :
                     reward, reg = self.compute_uncertance(batch)
                 else:
@@ -150,13 +152,12 @@ class custom_AIRL(AIRL):
                     disc_logits,
                     batch["labels_expert_is_one"].float(),
                 )
-                # self.lambda_reg = dynamic_lambda_reg(loss.item())
+
                 self.lambda_regs.append(self.lambda_reg)
 
-                reg = reg * self.lambda_reg
                 self.binary_losses.append(loss.item())
 
-                loss = loss + reg
+                loss = loss + reg * self.lambda_reg
                 self.reg_list.append(reg.item())
 
                 assert len(batch["state"]) == 2 * self.demo_minibatch_size
@@ -165,10 +166,10 @@ class custom_AIRL(AIRL):
             b_r_exp.append(r_exp)
             b_r_gen.append(r_gen)
 
-            if np.mean(self.binary_losses) > 0.69:
-                self.lambda_reg = self.lambda_reg
-            else:
-                self.lambda_reg = self.lambda_reg * 0.8
+            # if np.mean(self.binary_losses) > 0.69:
+            #     self.lambda_reg = self.lambda_reg
+            # else:
+            #     self.lambda_reg = self.lambda_reg * 0.8
 
             # do gradient step
             self._disc_opt.step()
@@ -178,7 +179,7 @@ class custom_AIRL(AIRL):
             self.reward_steps.append(self._disc_step)
             logs = {"exp_reward": self.reward_exp, "gen_reward": self.reward_gen, "step": self._disc_step}
             if self._disc_step % 4 == 0 and self._disc_step != 0:
-                torch.save(logs, f"model/airl/log/logs_hc_bairl")
+                torch.save(logs, f"model/airl/log/logs_hc_bairl.pth")
             # compute/write stats and TensorBoard data
             with torch.no_grad():
                 train_stats = common.compute_train_stats(
