@@ -1,5 +1,5 @@
 # BAIRL
-The Bayesian inverse reinforcement learning experiment achieved the initial stable performance of the discriminator by introducing mc-dropout in AIL.
+The Bayesian inverse reinforcement learning experiment achieved the initial stable performance of the discriminator by introducing mc-dropout in AIRL.
 
 
 ## 🚀 Requirement
