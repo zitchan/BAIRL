@@ -15,6 +15,6 @@ Ant: <br>
 policy Parameters: https://huggingface.co/HumanCompatibleAI/ppo-seals-Ant-v0
 reward net: <br> demo_batch_size=2048, gen_replay_buffer_capacity=512, n_disc_updates_per_round=4, lambda_reg=0.01 decline every 20,000 steps.<br>
 
-Ant: <br>
+humanoid: <br>
 policy Parameters: https://huggingface.co/HumanCompatibleAI/ppo-seals-humanoid-v0
 reward net: <br> demo_batch_size=2048, gen_replay_buffer_capacity=1024, n_disc_updates_per_round=8, lambda_reg=0.01 decline every 20,000 steps.<br>
